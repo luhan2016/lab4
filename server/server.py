@@ -75,27 +75,34 @@ try:
     # ------------------------------------------------------------------------------------------------------
     @app.route('/')
     def index():
-        return template('server/index.tpl', board_title='Vessel {}'.format(node_id), vote_dict=sorted(board.iteritems()),\
+        return template('server/index.tpl', board_title='Vessel {}'.format(node_id), vote_dict=sorted(board.iteritems()),f_result= final_result,\
                                             members_name_string='lhan@student.chalmers.se;shahn@student.chalmers.se')
 
 
     @app.get('/vote/result')
     def vote_result():
-        return template('server/boardcontents_template.tpl',board_title='Vessel {}'.format(node_id), vote_dict=sorted(board.iteritems()))
+        global final_result
+        return template('server/boardcontents_template.tpl',board_title='Vessel {}'.format(node_id), f_result= final_result, vote_dict=sorted(board.iteritems()))
+
+    @app.post('/vote/result')
+    def vote_result():
+        global final_result
+        final_result = request.body.read()
+        print "11111111final_result is ", final_result
 
 
     @app.post('/vote/attack')
     def vote_attack():
         print "attack"
-        add_new_element_to_store(node_id,"True")
-        propagate_to_vessels('/propagate/{}'.format(node_id), "True")
+        add_new_element_to_store(node_id,"Attack")
+        propagate_to_vessels('/propagate/{}'.format(node_id), "Attack")
 
 
     @app.post('/vote/retreat')
     def vote_retreat():
         print "retreat"
-        add_new_element_to_store(node_id, "False")
-        propagate_to_vessels('/propagate/{}'.format(node_id), "False")
+        add_new_element_to_store(node_id, "Retreat")
+        propagate_to_vessels('/propagate/{}'.format(node_id), "Retreat")
 
     @app.post('/propagate/<precede_id:int>')
     def propagation_received(precede_id):
@@ -113,22 +120,32 @@ try:
         print "byzantine"
         global board,no_loyal,no_total,vessel_list, node_id,final_result
         print "no_loyal is{}, no_total is{}".format(no_loyal,no_total)
+        add_new_element_to_store(node_id, "Byzantine")
         result_vote = compute_byzantine_vote_round1(no_loyal,no_total,False)
         for vessel_id, vessel_ip in vessel_list.items():
             if int(vessel_id) != node_id: # don't propagate to yourself
-                contact_vessel(vessel_ip, '/propagate/{}'.format(node_id), str(result_vote.pop()))
+                #contact_vessel(vessel_ip, '/propagate/{}'.format(node_id), str(result_vote.pop()))
+                if str(result_vote.pop()) == 'True':
+                    contact_vessel(vessel_ip, '/propagate/{}'.format(node_id), 'Attack')
+                else:
+                    contact_vessel(vessel_ip, '/propagate/{}'.format(node_id), 'Retreat')
         result_vectors = compute_byzantine_vote_round2(no_loyal,no_total,False)
-        count_attack = result_vectors.count(result_vectors[0])
-        count_retreat = result_vectors.count(result_vectors[1])
+        if result_vectors[0][0] == 'True':
+            count_attack = result_vectors.count(result_vectors[0])
+            count_retreat = result_vectors.count(result_vectors[1])
+        else:
+            count_attack = result_vectors.count(result_vectors[1])
+            count_retreat = result_vectors.count(result_vectors[0])
         print "count_attack is ",count_attack
         print "count_retreat is ",count_retreat
         if count_retreat > count_attack:
-            final_result = "retreat"
+            final_result = "Retreat"
         elif count_retreat < count_attack:
-            final_result = "attack"
+            final_result = "Attack"
         else:
             final_result = "no aggrement"
-
+        print "final_result is ", final_result
+        propagate_to_vessels('/vote/result', final_result)
 
 
 

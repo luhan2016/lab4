@@ -11,5 +11,6 @@ It will be reloaded automatically from the server -->
 			<input type="text" name="entry" value="{{vote_Value}}" size="70%%">
 		</form>
     %end
+    <input type="text" name="finalresult" value="Final result is: {{f_result}}" readonly>
 </div>
   
