@@ -14,7 +14,7 @@ from mininet.log import setLogLevel, info # Logger
 from mininet.term import makeTerm, cleanUpScreens # Open xterm from mininet
 from mininet.cli import CLI # Command Line Interface
 import argparse
-import math
+import math 
 #------------------------------------------------------------------------------------------------------
 
 
@@ -87,7 +87,10 @@ class Lab():
     # Open an xterm and launch a specific command
     def startServer(self, server):
         # Call mininet.term.makeTerm
-        makeTerm(node=server, cmd="python {} --id {} --vessels {}".format(self.pathToServer, server.IP().replace('10.1.0.',''), self.nbOfServersPerRegion*self.nbOfRegions))
+        makeTerm(node=server, cmd="python {} --id {} --vessels {}".format(self.pathToServer, server.IP().replace('10.1.0.',''), \
+            self.nbOfServersPerRegion*self.nbOfRegions))
+        #makeTerm(node=server, cmd="python {} --id {} --vessels {}".format(self.pathToServer, server.IP().replace('10.2.0.',''), \
+        #    self.nbOfServersPerRegion*self.nbOfRegions))
 #------------------------------------------------------------------------------------------------------
     # run(self)
     # Run the lab 1
@@ -130,8 +133,11 @@ class Lab():
 #------------------------------------------------------------------------------------------------------
 # If the script was directly launched (and that should be the case!)
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Run the distributed system. Launches a Mininet environment composed of multiple servers running your implementation of the lab, as well as a few clients. At startup, launches a firefox instance to test your blackboard.')
-    parser.add_argument('--servers', nargs='?', dest='nb_srv', default=8, type=int, help='The number of servers that should be running. If the number is even, the servers will be run in different regions. If the number is odd, all servers will be connected to the same switch.')
+    parser = argparse.ArgumentParser(description='Run the distributed system. \
+        Launches a Mininet environment composed of multiple servers running your implementation of the lab, \
+        as well as a few clients. At startup, launches a firefox instance to test your blackboard.')
+    parser.add_argument('--servers', nargs='?', dest='nb_srv', default=4, type=int, help='The number of servers that should be running. \
+        If the number is even, the servers will be run in different regions. If the number is odd, all servers will be connected to the same switch.')
     parser.add_argument('--vessels', nargs='?', dest='pth_srv', default='server/server.py', help='The path to your server implementation.')
     args = parser.parse_args()
     nbOfRegions = 2 if args.nb_srv%2==0 else 1
