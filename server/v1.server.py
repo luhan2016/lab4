@@ -17,18 +17,18 @@ import requests
 # ------------------------------------------------------------------------------------------------------
 try:
     app = Bottle()
-    board = {} 
+    vote = ['0','1','2','3'] 
 
     # ------------------------------------------------------------------------------------------------------
     # BOARD FUNCTIONS
     # ------------------------------------------------------------------------------------------------------
-    def add_new_element_to_store(vesselID, vote_value):
-        print "in add_new_element_to_store"
-        global board
+    def add_new_vote_to_list(index, element):
+        print "in add_new_vote_to_list"
+        global vote
         success = False
         try:
-            board[vesselID] = vote_value
-            print "node_id {} vote is{} ".format(node_id, board)
+            vote[index-1] = element
+            print "node_id {} vote is{} ".format(node_id, vote)
             success = True
         except Exception as e:
             print e
@@ -53,6 +53,8 @@ try:
             # result is in res.text or res.json()
             if res.status_code == 200:
                 success = True
+            else:
+                print "wrong"
         except Exception as e:
             print e
         return success
@@ -75,26 +77,28 @@ try:
     # ------------------------------------------------------------------------------------------------------
     @app.route('/')
     def index():
-        return template('server/index.tpl', board_title='Vessel {}'.format(node_id), vote_dict=sorted(board.iteritems()),\
+        return template('server/index.tpl', board_title='Vessel {}'.format(node_id), IVOTE=I_vote, Result = final_result,\
                                             members_name_string='lhan@student.chalmers.se;shahn@student.chalmers.se')
 
 
     @app.get('/vote/result')
     def vote_result():
-        return template('server/boardcontents_template.tpl',board_title='Vessel {}'.format(node_id), vote_dict=sorted(board.iteritems()))
+        return template('server/boardcontents_template.tpl',board_title='Vessel {}'.format(node_id), IVOTE=I_vote, Result = final_result)
 
 
     @app.post('/vote/attack')
     def vote_attack():
         print "attack"
-        add_new_element_to_store(node_id,"True")
+        I_vote = "attack"
+        add_new_vote_to_list(node_id,"True")
         propagate_to_vessels('/propagate/{}'.format(node_id), "True")
 
 
     @app.post('/vote/retreat')
     def vote_retreat():
         print "retreat"
-        add_new_element_to_store(node_id, "False")
+        I_vote = "retreat"
+        add_new_vote_to_list(node_id, "False")
         propagate_to_vessels('/propagate/{}'.format(node_id), "False")
 
     @app.post('/propagate/<precede_id:int>')
@@ -102,7 +106,7 @@ try:
         print "propagate"        # check the action is add, modify or delete
         try:
             body = request.body.read()
-            add_new_element_to_store(precede_id, body)
+            add_new_vote_to_list(precede_id, body)
             return True
         except Exception as e:
             print e
@@ -111,7 +115,7 @@ try:
     @app.post('/vote/byzantine')
     def vote_byzantine():
         print "byzantine"
-        global board,no_loyal,no_total,vessel_list, node_id,final_result
+        global vote,no_loyal,no_total,vessel_list, node_id,final_result
         print "no_loyal is{}, no_total is{}".format(no_loyal,no_total)
         result_vote = compute_byzantine_vote_round1(no_loyal,no_total,False)
         for vessel_id, vessel_ip in vessel_list.items():
@@ -183,9 +187,10 @@ try:
     # ------------------------------------------------------------------------------------------------------
     # Execute the code
     def main():
-        global vessel_list, node_id, app, vote_dict,no_total,no_loyal, final_result, board
+        global vessel_list, node_id, app, vote,no_total,no_loyal, I_vote, final_result
         no_loyal = 3
         port = 80
+        I_vote = ''
         final_result = ''
         parser = argparse.ArgumentParser(description='Your own implementation of the distributed blackboard')
         parser.add_argument('--id', nargs='?', dest='nid', default=1, type=int, help='This server ID')
