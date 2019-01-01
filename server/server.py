@@ -92,7 +92,6 @@ try:
         for vessel_id, vessel_ip in vessel_list.items():
             if int(vessel_id) != node_id: # don't propagate to yourself
                 temp = byzantine_vectors.pop().pop()
-                print temp
                 if temp == 'True':
                     for i in range(0, no_total):
                         byzantine_vectors_to_dict[str(i+1)] = 'Attack'
