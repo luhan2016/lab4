@@ -25,6 +25,8 @@ try:
     # ------------------------------------------------------------------------------------------------------
     # BOARD FUNCTIONS
     # ------------------------------------------------------------------------------------------------------
+
+    # add vessel vote result to board, e.g.,board={'Attack','Retreat','Attack'}
     def add_new_element_to_store(vesselID, vote_value):
         global board
         success = False
@@ -35,6 +37,7 @@ try:
             print e
         return success
 
+    # add vessel vote ressult vector to "vector", e.g.,vector={'1':{'2':'Attack','3':'Retreat','4':'Attack'}}
     def add_new_vector(vesselID, vote_result_dict):
         global vector
         success = False
@@ -49,7 +52,7 @@ try:
     # DISTRIBUTED COMMUNICATIONS FUNCTIONS
     # ------------------------------------------------------------------------------------------------------
     def contact_vessel(vessel_ip, path, payload=None, req='POST'):
-        # Try to contact another server (vessel) through a POST or GET, once
+        # Try to contact another server (vessel) through a POST or GET
         success = False
         try:
             if 'POST' in req:
@@ -63,14 +66,16 @@ try:
             print e
         return success
 
-
+    # propagate payload to all other vessels
     def propagate_to_vessels(path, payload = None, req = 'POST'):
         global vessel_list, node_id
         for vessel_id, vessel_ip in vessel_list.items():
             if int(vessel_id) != node_id: # don't propagate to yourself
                 contact_vessel(vessel_ip, path, payload, req)
 
-
+    #only the byzantine node call this function, to propagate the byzantine vote to all othere vessels
+    #since the byzantine_vote is generated in compute_byzantine_vote_round1(), so the value is 'True' or 'False', 
+    # change them to "Attack" or 'Retreat'
     def propagate_byzantine_vote_to_vessels(byzantine_vote):
         global vessel_list, node_id
         for vessel_id, vessel_ip in vessel_list.items():
@@ -84,7 +89,9 @@ try:
                 t.daemon = True
                 t.start()
 
-
+    #only the byzantine node call this function, to propagate the byzantine vote vectores to all othere vessels
+    #since the byzantine_vectors is generated in compute_byzantine_vote_round2(), so the value is 'True' or 'False', 
+    # change them to "Attack" or 'Retreat'
     def propagate_byzantine_vectors_to_vessels(byzantine_vectors):
         global vessel_list, node_id
         byzantine_vectors_to_dict = {}
@@ -105,7 +112,11 @@ try:
                 byzantine_vectors_to_dict = {}
 
 
-
+    # when a node recieve all vectors from all other nodes, calculate own result vector
+    # e.g., vector is {'2':{'1':'Attack','2':'Retreat','3':'Attack','4':'Retreat'
+    #                  '3':{'1':'Attack','2':'Retreat','3':'Attack','4':'Attack'
+    #                  '4':{'1':'Attack','2':'Attack','3':'Attack','4':'Attack'}}
+    # the result_vector will be {'1':'Attack','2':'Retreat','3':'Attack','4':'Attack'}
     def find_result_vector():
         global vector,no_total,no_loyal,result_vector
         result_vector = []
@@ -130,7 +141,8 @@ try:
         print "\nresult_vectors is:",result_vector
         find_final_result(result_vector)
 
-
+    # when a node has its own result vector, calculate the final result from result vector
+    # e.g., result vector is {'1':'Attack','2':'Retreat','3':'Attack','4':'Attack'}, then final result is 'Attack'
     def find_final_result(result_vector):
         global no_total,no_loyal,final_result
         count_attack = 0
@@ -160,7 +172,7 @@ try:
                                             vote_vector_dict = sorted(vote_vector_result_dict.iteritems()), final_result_vector = result_vector, \
                                             f_result = final_result,members_name_string='lhan@student.chalmers.se;shahn@student.chalmers.se')
 
-
+    # show the results in the webpage
     @app.get('/vote/result')
     def vote_result():
         global final_result,vote_vector_result_dict,result_vector,byzantine_node,node_id
@@ -169,6 +181,7 @@ try:
         return template('server/boardcontents_template.tpl',board_title ='Vessel {}'.format(node_id), vote_dict = sorted(board.iteritems()),\
             vote_vector_dict = sorted(vote_vector_result_dict.iteritems()),final_result_vector = result_vector, f_result= final_result)
 
+    # vessel votes attack and propagate the vote to other vessels
     @app.post('/vote/attack')
     def vote_attack():
         add_new_element_to_store(node_id,"Attack")
@@ -176,7 +189,7 @@ try:
         t.daemon = True
         t.start()
 
-
+    # vessel votes retreat and propage the vote to other vessels
     @app.post('/vote/retreat')
     def vote_retreat():
         add_new_element_to_store(node_id, "Retreat")
@@ -184,7 +197,8 @@ try:
         t.daemon = True
         t.start()
 
-
+    # receive other vessels' vote and add the vote to store
+    #when receive all votes propagate the received votes to other vessels
     @app.post('/propagate/<precede_id:int>')
     def propagation_received_vote(precede_id):
         global no_total,byzantine_node,node_id
@@ -200,13 +214,12 @@ try:
             print e
         return False
 
-
+    # vessel votes byzantine and call compute_byzantine_vote_round1() & compute_byzantine_vote_round2()
+    # propage the byzantine vote & byzantine vectors to other vessels
     @app.post('/vote/byzantine')
     def vote_byzantine():
         global no_loyal,no_total, node_id,byzantine_node
         byzantine_node = node_id
-        #add_new_element_to_store(node_id, "Byzantine")
-
         byzantine_vote = compute_byzantine_vote_round1(no_loyal,no_total,True)
         byzantine_vectors = compute_byzantine_vote_round2(no_loyal,no_total,True)
 
@@ -220,7 +233,8 @@ try:
         t2.start()
 
 
-
+    # receive vessels' propagated vectors and add the vectors to "vector"
+    # when receive all vessels' vector, then perform the find_result_vector()
     @app.post('/propagate_vector/<precede_id:int>')
     def receive_propagated_vector(precede_id):
         global no_total,vector
