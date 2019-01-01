@@ -19,7 +19,7 @@ try:
     app = Bottle()
     board = {} 
     vector = {}
-    result_vector = []
+    result_vector = ""
     vote_vector_result_dict = {}
 
     # ------------------------------------------------------------------------------------------------------
@@ -88,24 +88,28 @@ try:
     def propagate_byzantine_vectors_to_vessels(byzantine_vectors):
         global vessel_list, node_id
         byzantine_vectors_to_dict = {}
+        print "byzantine_vectors is: ",byzantine_vectors
         for vessel_id, vessel_ip in vessel_list.items():
             if int(vessel_id) != node_id: # don't propagate to yourself
                 temp = byzantine_vectors.pop().pop()
+                print temp
                 if temp == 'True':
                     for i in range(0, no_total):
                         byzantine_vectors_to_dict[str(i+1)] = 'Attack'
-                else:
+                elif temp == 'False':
                     for i in range(0, no_total):
                         byzantine_vectors_to_dict[str(i+1)] = 'Retreat'
-                print "\n\n\nbyzantine_vectors_to_dict is: " ,byzantine_vectors_to_dict
                 t = Thread(target=contact_vessel, args = (vessel_ip,'/propagate_vector/{}'.format(node_id),byzantine_vectors_to_dict)) 
                 t.daemon = True
                 t.start()
+                time.sleep(1)
+                byzantine_vectors_to_dict = {}
+
+
 
     def find_result_vector():
         global vector,no_total,no_loyal,result_vector
-        print "vector"
-        print vector
+        result_vector = []
         count_attack = []
         count_retreat = []
         for i in range(0,no_total):
@@ -145,7 +149,6 @@ try:
             final_result = "UNKNOWN"
 
 
-
     # ------------------------------------------------------------------------------------------------------
     # ROUTES
     # ------------------------------------------------------------------------------------------------------
@@ -161,7 +164,7 @@ try:
 
     @app.get('/vote/result')
     def vote_result():
-        global final_result,vote_vector_result_dict,result_vector
+        global final_result,vote_vector_result_dict,result_vector,byzantine_node,node_id
         for temp_vessel_id, temp_vector_result in vector.items():
             vote_vector_result_dict[temp_vessel_id] = sorted(temp_vector_result.iteritems())
         return template('server/boardcontents_template.tpl',board_title ='Vessel {}'.format(node_id), vote_dict = sorted(board.iteritems()),\
@@ -185,12 +188,11 @@ try:
 
     @app.post('/propagate/<precede_id:int>')
     def propagation_received_vote(precede_id):
-        global no_total
+        global no_total,byzantine_node,node_id
         try:
             body = request.body.read()
             add_new_element_to_store(precede_id, body)
             if len(board) == no_total:
-                print "\n\nI receive all votes, votes are: ", board
                 t = Thread(target=propagate_to_vessels, args = ('/propagate_vector/{}'.format(node_id),board)) 
                 t.daemon = True
                 t.start()
@@ -202,8 +204,9 @@ try:
 
     @app.post('/vote/byzantine')
     def vote_byzantine():
-        global no_loyal,no_total, node_id
-        add_new_element_to_store(node_id, "Byzantine")
+        global no_loyal,no_total, node_id,byzantine_node
+        byzantine_node = node_id
+        #add_new_element_to_store(node_id, "Byzantine")
 
         byzantine_vote = compute_byzantine_vote_round1(no_loyal,no_total,True)
         byzantine_vectors = compute_byzantine_vote_round2(no_loyal,no_total,True)
@@ -229,9 +232,7 @@ try:
             for i in range(0,no_total):
                 tem1,tem2 = temp[i].split("=")
                 received_vector[tem1] = tem2
-            print "\n\n\n\n {} receive_propagated_vector, body is{}: ".format(precede_id,received_vector)
             add_new_vector(precede_id, received_vector)
-            print "\n\n\nvector is: ", vector
             if len(vector) == no_loyal:
                 find_result_vector()
             return True
@@ -285,8 +286,8 @@ try:
     # ------------------------------------------------------------------------------------------------------
     # Execute the code
     def main():
-        global vessel_list, node_id, app, vote_dict,no_total,no_loyal, final_result, board, vector,vote_vector_result_dict,result_vector
-        no_loyal = 3
+        global vessel_list, node_id, app, vote_dict,no_total,no_loyal, final_result, board, vector,vote_vector_result_dict,result_vector,byzantine_node
+        byzantine_node = 0
         port = 80
         final_result = ""
         parser = argparse.ArgumentParser(description='Your own implementation of the distributed blackboard')
@@ -299,6 +300,7 @@ try:
         for i in range(1, args.nbv+1):
             vessel_list[str(i)] = '10.1.0.{}'.format(str(i))
         no_total = args.nbv
+        no_loyal = no_total-1
         try:
             run(app, host=vessel_list[str(node_id)], port=port)
         except Exception as e:
