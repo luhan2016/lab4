@@ -19,8 +19,7 @@ try:
     app = Bottle()
     board = {} 
     vector = {}
-    result_vector = []
-    vote_vector_result_dict = {}
+    FinalResult = []
 
     # ------------------------------------------------------------------------------------------------------
     # BOARD FUNCTIONS
@@ -30,6 +29,7 @@ try:
         success = False
         try:
             board[vesselID] = vote_value
+            print "node_id {} vote {} ".format(node_id, board)
             success = True
         except Exception as e:
             print e
@@ -40,6 +40,7 @@ try:
         success = False
         try:
             vector[vesselID] = vote_result_dict
+            print "\nnode_id {} vote is{} ".format(node_id, vote_result_dict)
             success = True
         except Exception as e:
             print e
@@ -53,6 +54,7 @@ try:
         success = False
         try:
             if 'POST' in req:
+                print "post from :{}/{},payload is {}".format(vessel_ip, path,payload)
                 res = requests.post('http://{}{}'.format(vessel_ip, path), data=payload)
             elif 'GET' in req:
                 res = requests.get('http://{}{}'.format(vessel_ip, path))
@@ -66,7 +68,9 @@ try:
 
     def propagate_to_vessels(path, payload = None, req = 'POST'):
         global vessel_list, node_id
+        print "in propagate_to_vessels"
         for vessel_id, vessel_ip in vessel_list.items():
+            print "vessel_id is ",vessel_id
             if int(vessel_id) != node_id: # don't propagate to yourself
                 contact_vessel(vessel_ip, path, payload, req)
 
@@ -86,6 +90,7 @@ try:
 
 
     def propagate_byzantine_vectors_to_vessels(byzantine_vectors):
+        print "byzantine_vectors is:",byzantine_vectors
         global vessel_list, node_id
         byzantine_vectors_to_dict = {}
         for vessel_id, vessel_ip in vessel_list.items():
@@ -103,9 +108,10 @@ try:
                 t.start()
 
     def find_result_vector():
-        global vector,no_total,no_loyal,result_vector
+        global vector,no_total,no_loyal
         print "vector"
         print vector
+        result_vector = []
         count_attack = []
         count_retreat = []
         for i in range(0,no_total):
@@ -143,6 +149,8 @@ try:
             final_result = "Retreat"
         else:
             final_result = "UNKNOWN"
+        if byzantine_node == node_id:
+            final_result = "UNKNOWN"
 
 
 
@@ -153,22 +161,20 @@ try:
     # ------------------------------------------------------------------------------------------------------
     @app.route('/')
     def index():
-        global final_result,vote_vector_result_dict,result_vector
-        return template('server/index.tpl', board_title='Vessel {}'.format(node_id), vote_dict = sorted(board.iteritems()),\
-                                            vote_vector_dict = sorted(vote_vector_result_dict.iteritems()), final_result_vector = result_vector, \
-                                            f_result = final_result,members_name_string='lhan@student.chalmers.se;shahn@student.chalmers.se')
+        return template('server/index.tpl', board_title='Vessel {}'.format(node_id), vote_dict = sorted(board.iteritems()),f_result = final_result,\
+                                            members_name_string='lhan@student.chalmers.se;shahn@student.chalmers.se')
 
 
     @app.get('/vote/result')
     def vote_result():
-        global final_result,vote_vector_result_dict,result_vector
-        for temp_vessel_id, temp_vector_result in vector.items():
-            vote_vector_result_dict[temp_vessel_id] = sorted(temp_vector_result.iteritems())
-        return template('server/boardcontents_template.tpl',board_title ='Vessel {}'.format(node_id), vote_dict = sorted(board.iteritems()),\
-            vote_vector_dict = sorted(vote_vector_result_dict.iteritems()),final_result_vector = result_vector, f_result= final_result)
+        global final_result,FinalResult,no_total,no_loyal
+
+        return template('server/boardcontents_template.tpl',board_title ='Vessel {}'.format(node_id), f_result= final_result,\
+                                                                     vote_dict =sorted(board.iteritems()))
 
     @app.post('/vote/attack')
     def vote_attack():
+        print "attack"
         add_new_element_to_store(node_id,"Attack")
         t = Thread(target=propagate_to_vessels, args = ('/propagate/{}'.format(node_id),'Attack')) 
         t.daemon = True
@@ -177,6 +183,7 @@ try:
 
     @app.post('/vote/retreat')
     def vote_retreat():
+        print "retreat"
         add_new_element_to_store(node_id, "Retreat")
         t = Thread(target=propagate_to_vessels, args = ('/propagate/{}'.format(node_id),'Retreat')) 
         t.daemon = True
@@ -190,7 +197,7 @@ try:
             body = request.body.read()
             add_new_element_to_store(precede_id, body)
             if len(board) == no_total:
-                print "\n\nI receive all votes, votes are: ", board
+                print "\n\n\n\nI receive all votes, votes are: ", board
                 t = Thread(target=propagate_to_vessels, args = ('/propagate_vector/{}'.format(node_id),board)) 
                 t.daemon = True
                 t.start()
@@ -202,7 +209,8 @@ try:
 
     @app.post('/vote/byzantine')
     def vote_byzantine():
-        global no_loyal,no_total, node_id
+        global no_loyal,no_total, node_id,byzantine_node
+        byzantine_node = node_id
         add_new_element_to_store(node_id, "Byzantine")
 
         byzantine_vote = compute_byzantine_vote_round1(no_loyal,no_total,True)
@@ -222,17 +230,23 @@ try:
     @app.post('/propagate_vector/<precede_id:int>')
     def receive_propagated_vector(precede_id):
         global no_total,vector
+        print "split received dictory"
         try:
             received_value = request.body.read()
+            print "received_value is: ", received_value
             temp = received_value.split("&")
+            print temp
             received_vector = {}
             for i in range(0,no_total):
                 tem1,tem2 = temp[i].split("=")
+                print tem1,tem2
                 received_vector[tem1] = tem2
+            print received_vector
             print "\n\n\n\n {} receive_propagated_vector, body is{}: ".format(precede_id,received_vector)
             add_new_vector(precede_id, received_vector)
             print "\n\n\nvector is: ", vector
             if len(vector) == no_loyal:
+                print "\n\n\nlihaile\n\n\n"
                 find_result_vector()
             return True
         except Exception as e:
@@ -252,6 +266,7 @@ try:
     #   A list with votes to send to the loyal nodes
     #   in the form [True,False,True,.....]
     def compute_byzantine_vote_round1(no_loyal,no_total,on_tie): 
+        print "compute_byzantine_vote_round1"
         result_vote = []
         for i in range(0,no_loyal):
             if i%2==0:
@@ -271,6 +286,7 @@ try:
     #   byzantine node will send to every one of the loyal ones
     #   in the form [[True,...],[False,...],...]
     def compute_byzantine_vote_round2(no_loyal,no_total,on_tie):
+        print "compute_byzantine_vote_round2"
         result_vectors=[]
         for i in range(0,no_loyal):
             if i%2==0:
@@ -280,15 +296,19 @@ try:
         return result_vectors
 
 
+
+
+
     # ------------------------------------------------------------------------------------------------------
     # EXECUTION
     # ------------------------------------------------------------------------------------------------------
     # Execute the code
     def main():
-        global vessel_list, node_id, app, vote_dict,no_total,no_loyal, final_result, board, vector,vote_vector_result_dict,result_vector
+        global vessel_list, node_id, app, vote_dict,no_total,no_loyal, final_result, board, vector,FinalResult,byzantine_node
+        byzantine_node = 0
         no_loyal = 3
         port = 80
-        final_result = ""
+        final_result = '...'
         parser = argparse.ArgumentParser(description='Your own implementation of the distributed blackboard')
         parser.add_argument('--id', nargs='?', dest='nid', default=1, type=int, help='This server ID')
         parser.add_argument('--vessels', nargs='?', dest='nbv', default=1, type=int, help='The total number of vessels present in the system')
